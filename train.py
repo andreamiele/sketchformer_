@@ -63,6 +63,18 @@ def main():
     # Dataset and DataLoader
     dataset = DistributedStroke3Dataset(data_directory='/content/quickdraw_prepared')
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=pad_collate)
+    
+    unique_tokens = set()
+
+    for data in dataloader:
+        # Assuming 'strokes' is the tensor containing stroke data
+        strokes = data['strokes']  # Adjust according to your dataset structure
+
+        # Flatten the strokes tensor and update the set of unique tokens
+        unique_tokens.update(strokes.flatten().tolist())
+
+    vocab_size = len(unique_tokens)
+    print(f"Calculated Vocabulary Size: {vocab_size}")
     # Example hyperparameters for the Transformer model
         # Define hyperparameters
     VOCAB_SIZE = 10000  # The size of your vocabulary

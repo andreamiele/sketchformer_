@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 import builders
-
+import math
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len):
@@ -28,7 +28,8 @@ class SketchEmbedding(nn.Module):
         self.positional_encoding = PositionalEncoding(d_model, max_seq_length)
 
     def forward(self, sketch_tokens):
-        # sketch_tokens: tensor of shape (batch_size, seq_length)
+        # Convert sketch_tokens to long tensor if not already
+        sketch_tokens = sketch_tokens.long()  # Ensure input is of type Long
         token_embeddings = self.token_embedding(sketch_tokens)  # (batch_size, seq_length, d_model)
         return self.positional_encoding(token_embeddings)
 
@@ -36,12 +37,10 @@ class SketchEmbedding(nn.Module):
 class SelfAttentionBottleneck(nn.Module):
     def __init__(self, d_model, nhead, dropout=0.1):
         super(SelfAttentionBottleneck, self).__init__()
-        self.self_attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=nhead, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=nhead, dropout=dropout)
 
     def forward(self, src):
-        # Assuming src is of shape (seq_len, batch_size, d_model)
         attn_output, _ = self.self_attn(src, src, src)
-        # Optionally, apply further pooling or linear layers to reduce dimensionality
         return attn_output
 
 
@@ -57,7 +56,7 @@ class Sketchformer(nn.Module):
                                                    dim_feedforward=dim_feedforward, 
                                                    dropout=dropout)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
-        self.self_attention_bottleneck = SelfAttentionBottleneck(d_model, nhead, dropout)
+        self.self_attention_bottleneck = SelfAttentionBottleneck(d_model, nhead)
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None, memory_mask=None, 
                 src_key_padding_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
