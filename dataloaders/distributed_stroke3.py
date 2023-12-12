@@ -7,128 +7,141 @@ import time
 from core.data import BaseDataLoader, DatasetSplit
 from torch.utils.data import Dataset, DataLoader
 
+import numpy as np
+import os
+import glob
+import torch
+from torch.utils.data import Dataset
 
+class DistributedStroke3Dataset(Dataset):
+    def __init__(self, data_directory, max_seq_len=200, shuffle_stroke=False, token_type='dictionary', use_continuous_data=False, use_absolute_strokes=False, tokenizer_dict_file='prep_data/sketch_token/token_dict.pkl', tokenizer_resolution=100, augment_stroke_prob=0.1, random_scale_factor=0.1):
+        self.max_seq_len = max_seq_len
+        self.shuffle_stroke = shuffle_stroke
+        self.token_type = token_type
+        self.use_continuous_data = use_continuous_data
+        self.use_absolute_strokes = use_absolute_strokes
+        self.tokenizer_dict_file = tokenizer_dict_file
+        self.tokenizer_resolution = tokenizer_resolution
+        self.augment_stroke_prob = augment_stroke_prob
+        self.random_scale_factor = random_scale_factor
 
-class Stroke3Dataset(Dataset):
-    def __init__(self, file_paths, hps, tokenizer=None):
-        self.file_paths = file_paths
-        self.hps = hps
-        self.tokenizer = tokenizer
-        self.data = self.load_data()
+        # Load data here
+        self.data_directory = data_directory
+        self.data, self.labels = self.load_data(data_directory)
 
     def load_data(self):
-        # Implement the data loading logic here
-        # This could involve loading numpy files and organizing them into a dictionary
-        data = {'x': [], 'y': []}
-        for file_path in self.file_paths:
-            loaded_data = np.load(file_path, allow_pickle=True)
-            data['x'].extend(loaded_data['x'])
-            data['y'].extend(loaded_data['y'])
-        return data
+        all_data = []
+        all_labels = []
+        for npz_file in glob.glob(os.path.join(self.data_directory, 'train_*.npz')):
+            with np.load(npz_file, allow_pickle=True) as data:
+                all_data.extend(data['x'])
+                all_labels.extend(data['y'])
+        return all_data, all_labels
 
     def __len__(self):
-        return len(self.data['x'])
+        return len(self.data)
 
     def __getitem__(self, idx):
-        sketch = self.data['x'][idx]
-        label = self.data['y'][idx]
+        sketch = self.data[idx]
+        label = self.labels[idx]
+        # Apply any preprocessing here if needed
+        # Convert sketch to a PyTorch tensor
+        sketch_tensor = torch.tensor(sketch, dtype=torch.float32)
+        label_tensor = torch.tensor(label, dtype=torch.long)
+        return sketch_tensor, label_tensor
 
-        # Preprocess the sketch
-        sketch = self.preprocess_sketch(sketch)
+    def preprocess(self, data, augment=False):
+        preprocessed = []
+        for sketch in data:
+            sketch = np.clip(sketch, -self.limit, self.limit)
+            sketch = np.array(sketch, dtype=np.float32)
 
-        # Convert label to tensor
-        label = torch.tensor(label, dtype=torch.long)
+            if augment:
+                sketch = self._augment_sketch(sketch)
 
-        return sketch, label
+            min_x, max_x, min_y, max_y = utils.sketch.get_bounds(sketch)
+            max_dim = max(max_x - min_x, max_y - min_y, 1)
+            sketch[:, :2] /= max_dim
 
-    def preprocess_sketch(self, sketch):
-        # Implement sketch preprocessing here
-        # This might include normalization, padding, and conversion to a PyTorch tensor
-        # ...
+            if self.shuffle_stroke:
+                lines = utils.tu_sketch_tools.strokes_to_lines(sketch, scale=1.0, start_from_origin=True)
+                np.random.shuffle(lines)
+                sketch = utils.tu_sketch_tools.lines_to_strokes(lines)
+
+            if self.use_absolute_strokes:
+                sketch = utils.sketch.convert_to_absolute(sketch)
+
+            if not self.use_continuous_data:
+                sketch = self.tokenizer.encode(sketch)
+
+            if len(sketch) > self.max_seq_len:
+                sketch = sketch[:self.max_seq_len]
+
+            sketch = self._cap_pad_and_convert_sketch(sketch)
+            preprocessed.append(sketch)
+
+        return np.array(preprocessed)
 
     def random_scale(self, data):
-        # Augment data by stretching x and y axis randomly [1-e, 1+e]
-        x_scale_factor = (random.random() - 0.5) * 2 * self.hps['random_scale_factor'] + 1.0
-        y_scale_factor = (random.random() - 0.5) * 2 * self.hps['random_scale_factor'] + 1.0
+        x_scale_factor = (np.random.random() - 0.5) * 2 * self.random_scale_factor + 1.0
+        y_scale_factor = (np.random.random() - 0.5) * 2 * self.random_scale_factor + 1.0
         data[:, 0] *= x_scale_factor
         data[:, 1] *= y_scale_factor
         return data
-    
-    def preprocess_sketch(self, sketch):
-        # Remove large gaps from the data
-        sketch = np.minimum(sketch, self.hps['limit'])
-        sketch = np.maximum(sketch, -self.hps['limit'])
-        sketch = np.array(sketch, dtype=np.float32)
 
-        # Normalize the sketch
-        min_x, max_x, min_y, max_y = self.get_bounds(sketch)
-        max_dim = max(max_x - min_x, max_y - min_y, 1.0)
-        sketch[:, :2] /= max_dim
-
-        # Augment sketch if needed
-        if self.hps['augment_stroke_prob'] > 0 and random.random() < self.hps['augment_stroke_prob']:
-            sketch = self.random_scale(sketch)
-
-        # Convert to absolute coordinates if required
-        if self.hps['use_absolute_strokes']:
-            sketch = self.convert_to_absolute(sketch)
-
-        # Tokenize if using discrete representation
-        if not self.hps['use_continuous_data']:
-            sketch = self.tokenizer.encode(sketch)
-
-        # Pad the sketch to the desired sequence length
-        sketch = self.pad_sketch(sketch)
-
-        # Convert to PyTorch tensor
-        return torch.tensor(sketch, dtype=torch.float32)
-
-    def get_bounds(self, sketch):
-        # Calculate the bounds of the sketch
-        min_x = np.min(sketch[:, 0])
-        max_x = np.max(sketch[:, 0])
-        min_y = np.min(sketch[:, 1])
-        max_y = np.max(sketch[:, 1])
-        return min_x, max_x, min_y, max_y
-    
-    def convert_to_absolute(self, sketch):
-        # Convert a sketch from relative to absolute coordinates
-        # This is a placeholder; implement according to your specific needs
-        # ...
-
-    def pad_sketch(self, sketch):
-        # Pad the sketch to a fixed length
-        padded_sketch = np.zeros((self.hps['max_seq_len'], sketch.shape[1]))
-        padded_sketch[:len(sketch)] = sketch
-        return padded_sketch
-
-
-class DistributedStroke3DataLoader:
-    def __init__(self, hps, data_directory, tokenizer=None):
-        self.hps = hps
-        self.data_directory = data_directory
-        self.tokenizer = tokenizer
-        self.train_dataset, self.test_dataset, self.valid_dataset = self.get_data_splits()
-
-    def get_data_splits(self):
-        # Get file paths for each data split
-        train_files = glob.glob(os.path.join(self.data_directory, 'train*.npz'))
-        test_files = glob.glob(os.path.join(self.data_directory, 'test*.npz'))
-        valid_files = glob.glob(os.path.join(self.data_directory, 'valid*.npz'))
-
-        train_dataset = Stroke3Dataset(train_files, self.hps, self.tokenizer)
-        test_dataset = Stroke3Dataset(test_files, self.hps, self.tokenizer)
-        valid_dataset = Stroke3Dataset(valid_files, self.hps, self.tokenizer)
-
-        return train_dataset, test_dataset, valid_dataset
-
-    def get_loader(self, split_name, batch_size, shuffle=True):
-        if split_name == 'train':
-            dataset = self.train_dataset
-        elif split_name == 'test':
-            dataset = self.test_dataset
+    def _cap_pad_and_convert_sketch(self, sketch):
+        desired_length = self.max_seq_len
+        if not self.use_continuous_data:
+            converted_sketch = np.ones((desired_length, 1), dtype=int) * self.tokenizer.PAD
+            converted_sketch[:len(sketch), 0] = sketch
         else:
-            dataset = self.valid_dataset
+            converted_sketch = np.zeros((desired_length, 5), dtype=float)
+            converted_sketch[:len(sketch), :2] = sketch[:, :2]
+            converted_sketch[:len(sketch), 2] = 1 - sketch[:, 2]
+            converted_sketch[:len(sketch), 3] = sketch[:, 2]
+            converted_sketch[len(sketch):, 4] = 1
+            converted_sketch[-1, 4] = 1
 
-        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+        return torch.tensor(converted_sketch, dtype=torch.float)
 
+    def _augment_sketch(self, sketch):
+        if self.augment_stroke_prob > 0 and self.use_continuous_data:
+            sketch = self.random_scale(sketch)
+            sketch = utils.sketch.augment_strokes(sketch, self.augment_stroke_prob)
+        return sketch
+
+    def preprocess_extra_sets_from_interp_experiment(self, data):
+        preprocessed_sketches = []
+        for sketch in data:
+            if self.use_absolute_strokes:
+                sketch = utils.sketch.convert_to_absolute(sketch)
+            if not self.use_continuous_data:
+                sketch = self.tokenizer.encode(sketch)
+
+            if len(sketch) > self.max_seq_len:
+                sketch = sketch[:self.max_seq_len]
+
+            sketch = self._cap_pad_and_convert_sketch(sketch)
+            preprocessed_sketches.append(sketch)
+
+        return np.array(preprocessed_sketches)
+
+    def get_class_exclusive_random_batch(self, split_name, n, class_list):
+        data = self.get_split_data(split_name)
+        x, y = data['x'], data['y']
+
+        np.random.seed(14)
+        idx = np.random.permutation(len(x))
+        np.random.seed()
+
+        n_per_class = n // len(class_list)
+        sel_skts = []
+        for chosen_class in class_list:
+            n_from_class = 0
+            for i in idx:
+                if y[i] == chosen_class:
+                    sel_skts.append(x[i])
+                    n_from_class += 1
+                    if n_from_class >= n_per_class:
+                        break
+        return np.array(sel_skts)
