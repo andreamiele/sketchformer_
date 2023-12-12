@@ -19,7 +19,7 @@ import dataloaders
 
 import torch
 from torch.utils.data import DataLoader
-from models.sketchformer import Transformer
+from models.sketchformer import Transformer,Sketchformer
 from dataloaders.distributed_stroke3 import DistributedStroke3Dataset
 
 def train(model, dataloader, epochs, learning_rate):
@@ -44,22 +44,36 @@ def main():
     batch_size = 32
 
     
-    num_layers = 4
-    d_model = 128
-    dff = 512
-    num_heads = 8
-    input_vocab_size = 1000  # Example size, change as per your dataset
-    target_vocab_size = 1000 # Example size, change as per your dataset
-    dropout_rate = 0.1
-    max_seq_len = 200
-
-   
+    
     # Dataset and DataLoader
     dataset = DistributedStroke3Dataset('path/to/your/npz/files')
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    # Model
-    model = Transformer(num_layers, d_model, dff, num_heads, input_vocab_size, target_vocab_size, dropout_rate, max_seq_len)
+    # Example hyperparameters for the Transformer model
+    num_layers = 4
+    d_model = 128
+    dff = 512
+    num_heads = 8
+    input_vocab_size = 1000  # Example size, adjust as needed
+    target_vocab_size = 1000 # Example size, adjust as needed
+    dropout_rate = 0.1
+    max_seq_len = 200
+    class_weight = 1.0
+    class_buffer_layers = 2
+    class_dropout = 0.1
+    do_reconstruction = True
+    recon_weight = 1.0
+    blind_decoder_mask = True
+    vocab_size = 1000  # Example size, adjust as needed
+    seq_len = 200
+    n_classes = 10  # Adjust as needed
+
+    # Instantiate the Transformer model with all required arguments
+    model = Sketchformer(num_layers, d_model, dff, num_heads, input_vocab_size, 
+                        target_vocab_size, dropout_rate, max_seq_len, 
+                        class_weight, class_buffer_layers, class_dropout, 
+                        do_reconstruction, recon_weight, blind_decoder_mask,
+                        vocab_size, seq_len, n_classes)
 
     # Train the model
     train(model, dataloader, epochs, learning_rate)

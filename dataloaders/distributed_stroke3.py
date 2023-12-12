@@ -27,9 +27,10 @@ class DistributedStroke3Dataset(Dataset):
 
         # Load data here
         self.data_directory = data_directory
-        self.data, self.labels = self.load_data(data_directory)
+        self.data, self.labels = self.load_data()
 
     def load_data(self):
+        # Here, we use self.data_directory to access the dataset directory
         all_data = []
         all_labels = []
         for npz_file in glob.glob(os.path.join(self.data_directory, 'train_*.npz')):
