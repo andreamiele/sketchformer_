@@ -2,7 +2,6 @@ import os
 import pkgutil
 import importlib
 
-from core.models import BaseModel
 
 models_by_name = {}
 pkg_dir = os.path.dirname(__file__)
