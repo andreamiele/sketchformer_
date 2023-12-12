@@ -61,12 +61,12 @@ def main():
 
    
     # Dataset and DataLoader
-    dataset = DistributedStroke3Dataset(data_directory='/content/quickdraw_prepared')
+    dataset = DistributedStroke3Dataset(data_directory='/content/quickdraw_prepared', use_continuous_data=True)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=pad_collate)
     
     unique_tokens = set()
 
-   for data in dataloader:
+    for data in dataloader:
         sketches = data[0]  # Assuming sketches are the first element in the tuple
         max_index = sketches.max()
         if max_index >= vocab_size:

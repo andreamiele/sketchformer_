@@ -73,7 +73,8 @@ class DistributedStroke3Dataset(Dataset):
                 sketch = utils.sketch.convert_to_absolute(sketch)
 
             if not self.use_continuous_data:
-                sketch = self.tokenizer.encode(sketch)
+                sketch = utils.Tokenizer('../prep_data/sketch_token/token_dict.pkl',
+                                             max_seq_len=0).encode(sketch)
 
             if len(sketch) > self.max_seq_len:
                 sketch = sketch[:self.max_seq_len]

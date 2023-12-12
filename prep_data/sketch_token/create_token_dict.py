@@ -61,7 +61,7 @@ if __name__ == '__main__':
         description='Prepare large dataset for chunked loading')
     parser.add_argument('--dataset-dir')
     parser.add_argument('-s', '--vocab-size', default=1000, type=int)
-    parser.add_argument('--n-samples', default=5000000, type=int)
+    parser.add_argument('--num-samples', default=5000000, type=int)
     parser.add_argument('-m', '--method', default='k-means')
     parser.add_argument('-r', '--p1-ratio', default=0.2, type=float,
                         help="Ratio of points with penstate=1 (minority) vs penstate=0 (majority) in SAMPLES; set to 0 if disable")
@@ -105,8 +105,7 @@ if __name__ == '__main__':
         cluster = MiniBatchKMeans(n_clusters=args.vocab_size, max_iter=200, compute_labels=False,
                                   batch_size=2**16, verbose=0, n_init=5, init_size=2**18).fit(data)
     elif args.method == 'k-means':
-        cluster = KMeans(n_clusters=args.vocab_size, n_init=10, max_iter=500, tol=1e-6, n_jobs=10,
-                         verbose=0).fit(data)
+        cluster = KMeans(n_clusters=args.vocab_size, n_init=10, max_iter=500, tol=1e-6)
     else:
         print('Unsupported clustering method: %s' % args.method)
         sys.exit(1)
