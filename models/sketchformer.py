@@ -4,10 +4,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 import builders
-from utils.hparams import HParams
-from core.models import BaseModel
-from .evaluation_mixin import TransformerMetricsMixin
-from builders.layers.transformer import (Encoder, Decoder, DenseExpander)
 
 class Transformer(nn.Module):
     def __init__(self, num_layers, d_model, dff, num_heads, dropout_rate, lowerdim, attn_version, do_classification, class_weight, class_buffer_layers, class_dropout, do_reconstruction, recon_weight, blind_decoder_mask, vocab_size, seq_len, n_classes):
