@@ -19,8 +19,23 @@ import dataloaders
 
 import torch
 from torch.utils.data import DataLoader
-from models.sketchformer import Transformer,Sketchformer
+from models.sketchformer import Transformer, Sketchformer
 from dataloaders.distributed_stroke3 import DistributedStroke3Dataset
+
+def pad_collate(batch):
+    """
+    A custom collate function to pad sketches to the same length.
+    """
+    max_len = max(x.shape[0] for x, _ in batch)
+    padded_sketches = []
+    labels = []
+    for sketch, label in batch:
+        padded_sketch = torch.zeros(max_len, sketch.shape[1])
+        padded_sketch[:sketch.shape[0], :] = sketch
+        padded_sketches.append(padded_sketch)
+        labels.append(label)
+    return torch.stack(padded_sketches, dim=0), torch.tensor(labels)
+
 
 def train(model, dataloader, epochs, learning_rate):
     # Define loss function and optimizer
@@ -31,7 +46,8 @@ def train(model, dataloader, epochs, learning_rate):
     for epoch in range(epochs):
         for sketches, labels in dataloader:
             optimizer.zero_grad()
-            outputs = model(sketches)
+            dummy_tgt = torch.zeros_like(sketches)
+            outputs = model(sketches,dummy_tgt)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -43,38 +59,28 @@ def main():
     learning_rate = 0.001
     batch_size = 32
 
-    
-    
+   
     # Dataset and DataLoader
-    dataset = DistributedStroke3Dataset('path/to/your/npz/files')
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
+    dataset = DistributedStroke3Dataset(data_directory='/content/quickdraw_prepared')
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=pad_collate)
     # Example hyperparameters for the Transformer model
-    num_layers = 4
-    d_model = 128
-    dff = 512
-    num_heads = 8
-    input_vocab_size = 1000  # Example size, adjust as needed
-    target_vocab_size = 1000 # Example size, adjust as needed
-    dropout_rate = 0.1
-    max_seq_len = 200
-    class_weight = 1.0
-    class_buffer_layers = 2
-    class_dropout = 0.1
-    do_reconstruction = True
-    recon_weight = 1.0
-    blind_decoder_mask = True
-    vocab_size = 1000  # Example size, adjust as needed
-    seq_len = 200
-    n_classes = 10  # Adjust as needed
+        # Define hyperparameters
+    VOCAB_SIZE = 10000  # The size of your vocabulary
+    NUM_LAYERS = 6      # Number of Transformer encoder and decoder layers
+    D_MODEL = 512       # Dimensionality of the Transformer layers
+    N_HEADS = 8         # Number of heads in the multi-head attention mechanisms
+    DIM_FEEDFORWARD = 2048  # Dimensionality of the feed-forward network in the Transformer layers
+    MAX_SEQ_LENGTH = 500    # Maximum sequence length of your sketches
+    DROPOUT_RATE = 0.1  # Dropout rate
 
-    # Instantiate the Transformer model with all required arguments
-    model = Sketchformer(num_layers, d_model, dff, num_heads, input_vocab_size, 
-                        target_vocab_size, dropout_rate, max_seq_len, 
-                        class_weight, class_buffer_layers, class_dropout, 
-                        do_reconstruction, recon_weight, blind_decoder_mask,
-                        vocab_size, seq_len, n_classes)
-
+    # Instantiate the Sketchformer model
+    model = Sketchformer(vocab_size=VOCAB_SIZE, 
+                                    num_layers=NUM_LAYERS, 
+                                    d_model=D_MODEL, 
+                                    nhead=N_HEADS, 
+                                    dim_feedforward=DIM_FEEDFORWARD, 
+                                    max_seq_length=MAX_SEQ_LENGTH, 
+                                    dropout=DROPOUT_RATE)
     # Train the model
     train(model, dataloader, epochs, learning_rate)
 
