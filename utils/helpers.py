@@ -17,7 +17,6 @@ import struct
 import errno
 from pprint import pprint
 import glob
-import tensorflow as tf
 import torch
 
 
