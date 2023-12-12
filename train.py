@@ -66,15 +66,12 @@ def main():
     
     unique_tokens = set()
 
-    for data in dataloader:
-        # Assuming 'strokes' is the tensor containing stroke data
-        strokes = data[0]  # Adjust according to your dataset structure
-
-        # Flatten the strokes tensor and update the set of unique tokens
-        unique_tokens.update(strokes.flatten().tolist())
-
-    vocab_size = len(unique_tokens)
-    print(f"Calculated Vocabulary Size: {vocab_size}")
+   for data in dataloader:
+        sketches = data[0]  # Assuming sketches are the first element in the tuple
+        max_index = sketches.max()
+        if max_index >= vocab_size:
+            print(f"Found token index {max_index} which exceeds vocab size")
+            break
     # Example hyperparameters for the Transformer model
         # Define hyperparameters
     VOCAB_SIZE = 10000  # The size of your vocabulary
