@@ -68,7 +68,7 @@ def main():
 
     for data in dataloader:
         # Assuming 'strokes' is the tensor containing stroke data
-        strokes = data['strokes']  # Adjust according to your dataset structure
+        strokes = data[0]  # Adjust according to your dataset structure
 
         # Flatten the strokes tensor and update the set of unique tokens
         unique_tokens.update(strokes.flatten().tolist())
