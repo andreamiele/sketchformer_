@@ -9,7 +9,7 @@ from core.models import BaseModel
 from .evaluation_mixin import TransformerMetricsMixin
 from builders.layers.transformer import (Encoder, Decoder, DenseExpander)
 
-class Transformer(BaseModel, TransformerMetricsMixin):
+class Transformer(nn.Module):
     def __init__(self, num_layers, d_model, dff, num_heads, dropout_rate, lowerdim, attn_version, do_classification, class_weight, class_buffer_layers, class_dropout, do_reconstruction, recon_weight, blind_decoder_mask, vocab_size, seq_len, n_classes):
         super(Transformer, self).__init__()
         self.num_layers = num_layers
@@ -45,7 +45,7 @@ class Transformer(BaseModel, TransformerMetricsMixin):
                 self.class_dropout = nn.ModuleList([nn.Dropout(self.class_dropout) for _ in range(self.class_buffer_layers)])
 
         # Assuming output_layer is defined based on whether the data is continuous or not
-        self.output_layer = None  # Define this according to your specific use case
+        self.output_layer = nn.Linear(d_model, target_vocab_size)  # Define this according to your specific use case
 
     def forward(self, inp, tar):
         # Implement the forward pass
